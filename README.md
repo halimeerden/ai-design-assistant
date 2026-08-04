@@ -1,5 +1,5 @@
 # ai-design-assistant
-IRYA AI Design Assistant
+AI Design Assistant : 
 AI-powered design assistant for textile brands.
 
 Generate brand-consistent rug concepts using:
