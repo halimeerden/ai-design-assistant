@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Generated assets (keep directory, ignore contents)
+data/generated/*
+!data/generated/.gitkeep
+
+# Local data uploads (optional — uncomment if assets should not be committed)
+# data/brand-assets/*
+# data/moodboards/*
