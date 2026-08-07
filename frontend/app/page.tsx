@@ -25,6 +25,18 @@ type Project = {
     updated_at: string;
 };
 
+type Asset = {
+  id: string;
+  brand_id: string;
+  project_id: string | null;
+  file_name: string;
+  storage_bucket: string;
+  storage_path: string;
+  asset_type: string;
+  analysis_result: Record<string, unknown> | null;
+  created_at: string;
+};
+
 const PRODUCT_TYPES = ["Bath Mat"] as const;
 
 export default function Home() {
@@ -37,6 +49,10 @@ export default function Home() {
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadedAsset, setUploadedAsset] = useState<Asset | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
 
   useEffect(() => {
@@ -131,6 +147,51 @@ export default function Home() {
       setIsSubmitting(false);
     }
   }
+  
+  async function handleUpload() {
+    if (!createdProject || !selectedFile) {
+      return;
+    }
+  
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  
+    if (!apiBaseUrl) {
+      setUploadError("API base URL is not configured.");
+      return;
+    }
+  
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadedAsset(null);
+  
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+  
+      const response = await fetch(
+        `${apiBaseUrl}/projects/${createdProject.id}/assets`,
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
+  
+      if (!response.ok) {
+        throw new Error(`Failed to upload image (${response.status}).`);
+      }
+  
+      const asset = (await response.json()) as Asset;
+      setUploadedAsset(asset);
+    } catch {
+      setUploadError(
+        "Unable to upload the image. Please check the backend and try again.",
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+
 
   const isContinueDisabled = !projectName.trim();
 
@@ -279,6 +340,62 @@ export default function Home() {
               Project ID: {createdProject.id}
             </p>
           </section>
+          )}
+
+          {createdProject && (
+            <section className="rounded-lg border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-700 dark:bg-zinc-800/50">
+              <h2 className="font-semibold text-zinc-900 dark:text-zinc-50">
+                Upload Reference Image
+              </h2>
+
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                Upload a JPEG, PNG, or WEBP image for this project.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setSelectedFile(file);
+                    setUploadedAsset(null);
+                    setUploadError(null);
+                  }}
+                  className="block w-full text-sm text-zinc-700 dark:text-zinc-300"
+                />
+
+                {selectedFile && (
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    Selected: {selectedFile.name}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleUpload}
+                  disabled={!selectedFile || isUploading}
+                  className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-500"
+                >
+                  {isUploading ? "Uploading..." : "Upload Image"}
+                </button>
+
+                {uploadError && (
+                  <p
+                    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
+                    role="alert"
+                  >
+                    {uploadError}
+                  </p>
+                )}
+
+                {uploadedAsset && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+                    Image uploaded successfully: {uploadedAsset.file_name}
+                  </div>
+                )}
+              </div>
+            </section>
           )}
           </div>
         )}
