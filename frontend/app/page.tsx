@@ -14,11 +14,15 @@ type BrandsState =
   | { kind: "success"; brands: Brand[] }
   | { kind: "error"; message: string };
 
-type ProjectSummary = {
-  brandName: string;
-  projectName: string;
-  productType: string;
-  description: string;
+type Project = {
+    id: string;
+    brand_id: string;
+    name: string;
+    description: string | null;
+    product_type: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
 };
 
 const PRODUCT_TYPES = ["Bath Mat"] as const;
@@ -30,9 +34,10 @@ export default function Home() {
   const [projectName, setProjectName] = useState("");
   const [productType, setProductType] = useState<string>(PRODUCT_TYPES[0]);
   const [projectDescription, setProjectDescription] = useState("");
-  const [projectSummary, setProjectSummary] = useState<ProjectSummary | null>(
-    null,
-  );
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  
 
   useEffect(() => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -82,17 +87,49 @@ export default function Home() {
   const activeBrand =
     brandsState.kind === "success" ? (brandsState.brands[0] ?? null) : null;
 
-  function handleContinue() {
+  async function handleContinue() {
     if (!activeBrand || !projectName.trim()) {
       return;
     }
-
-    setProjectSummary({
-      brandName: activeBrand.name,
-      projectName: projectName.trim(),
-      productType,
-      description: projectDescription.trim(),
-    });
+  
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  
+    if (!apiBaseUrl) {
+      setSubmitError("API base URL is not configured.");
+      return;
+    }
+  
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setCreatedProject(null);
+  
+    try {
+      const response = await fetch(`${apiBaseUrl}/projects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          brand_id: activeBrand.id,
+          name: projectName.trim(),
+          description: projectDescription.trim() || null,
+          product_type: "bath_mat",
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Failed to create project (${response.status}).`);
+      }
+  
+      const project = (await response.json()) as Project;
+      setCreatedProject(project);
+    } catch {
+      setSubmitError(
+        "Unable to create the project. Please check that the backend is running.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   const isContinueDisabled = !projectName.trim();
@@ -159,7 +196,6 @@ export default function Home() {
                   value={projectName}
                   onChange={(event) => {
                     setProjectName(event.target.value);
-                    setProjectSummary(null);
                   }}
                   placeholder="e.g. Summer Collection 2026"
                   className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
@@ -178,7 +214,6 @@ export default function Home() {
                   value={productType}
                   onChange={(event) => {
                     setProductType(event.target.value);
-                    setProjectSummary(null);
                   }}
                   className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
                 >
@@ -202,8 +237,7 @@ export default function Home() {
                   value={projectDescription}
                   onChange={(event) => {
                     setProjectDescription(event.target.value);
-                    setProjectSummary(null);
-                  }}
+                    }}
                   rows={4}
                   placeholder="Describe the design direction, mood, or goals for this project."
                   className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
@@ -212,57 +246,40 @@ export default function Home() {
 
               <button
                 type="submit"
-                disabled={isContinueDisabled}
+                disabled={isContinueDisabled || isSubmitting}
                 className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-500"
               >
-                Continue
+                {isSubmitting ? "Creating project..." : "Continue"}
               </button>
             </form>
 
-            {projectSummary && (
-              <section
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-5 py-4 dark:border-zinc-700 dark:bg-zinc-800/50"
-                aria-live="polite"
-              >
-                <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-                  Project Summary
-                </h2>
-                <dl className="space-y-2 text-sm">
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-zinc-600 dark:text-zinc-400">
-                      Brand:
-                    </dt>
-                    <dd className="text-zinc-900 dark:text-zinc-50">
-                      {projectSummary.brandName}
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-zinc-600 dark:text-zinc-400">
-                      Project name:
-                    </dt>
-                    <dd className="text-zinc-900 dark:text-zinc-50">
-                      {projectSummary.projectName}
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-zinc-600 dark:text-zinc-400">
-                      Product type:
-                    </dt>
-                    <dd className="text-zinc-900 dark:text-zinc-50">
-                      {projectSummary.productType}
-                    </dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="font-medium text-zinc-600 dark:text-zinc-400">
-                      Description:
-                    </dt>
-                    <dd className="text-zinc-900 dark:text-zinc-50">
-                      {projectSummary.description || "—"}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-            )}
+            {submitError && (
+  <p
+    className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
+    role="alert"
+  >
+    {submitError}
+  </p>
+)}
+
+          {createdProject && (
+          <section
+            className="rounded-lg border border-green-200 bg-green-50 px-5 py-4 dark:border-green-900 dark:bg-green-950/30"
+            aria-live="polite"
+          >
+            <h2 className="font-semibold text-green-900 dark:text-green-200">
+              Project created successfully
+            </h2>
+
+            <p className="mt-2 text-sm text-green-800 dark:text-green-300">
+              Project: {createdProject.name}
+            </p>
+
+            <p className="mt-1 break-all text-sm text-green-800 dark:text-green-300">
+              Project ID: {createdProject.id}
+            </p>
+          </section>
+          )}
           </div>
         )}
       </main>
