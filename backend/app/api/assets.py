@@ -7,6 +7,8 @@ from postgrest.exceptions import APIError
 from app.core.supabase import get_supabase_client
 from app.schemas.assets import BrandAssetResponse
 
+from app.services.vision import get_vision_provider
+
 router = APIRouter(tags=["assets"])
 
 ALLOWED_CONTENT_TYPES = {
@@ -114,4 +116,92 @@ async def upload_project_asset(
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while uploading the asset.",
+        )
+
+@router.post(
+    "/assets/{asset_id}/analyze",
+    response_model=BrandAssetResponse,
+)
+def analyze_asset(asset_id: UUID) -> BrandAssetResponse:
+    supabase = get_supabase_client()
+
+    try:
+        asset_response = (
+            supabase
+            .table("brand_assets")
+            .select("*")
+            .eq("id", str(asset_id))
+            .single()
+            .execute()
+        )
+
+        asset = asset_response.data
+
+        if not asset:
+            raise HTTPException(
+                status_code=404,
+                detail="Asset not found.",
+            )
+
+        image_bytes = (
+            supabase.storage
+            .from_(asset["storage_bucket"])
+            .download(asset["storage_path"])
+        )
+
+        file_name = asset["file_name"].lower()
+
+        if file_name.endswith((".jpg", ".jpeg")):
+            mime_type = "image/jpeg"
+        elif file_name.endswith(".png"):
+            mime_type = "image/png"
+        elif file_name.endswith(".webp"):
+            mime_type = "image/webp"
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported image type.",
+            )
+
+        vision_provider = get_vision_provider()
+
+        analysis = vision_provider.analyze_image(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+        )
+
+        update_response = (
+            supabase
+            .table("brand_assets")
+            .update(
+                {
+                    "analysis_result": analysis.model_dump(),
+                }
+            )
+            .eq("id", str(asset_id))
+            .execute()
+        )
+
+        if not update_response.data:
+            raise HTTPException(
+                status_code=500,
+                detail="Analysis completed but could not be saved.",
+            )
+
+        return BrandAssetResponse.model_validate(
+            update_response.data[0]
+        )
+
+    except APIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to analyze asset.",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+            #detail="An unexpected error occurred while analyzing the asset.",
         )
