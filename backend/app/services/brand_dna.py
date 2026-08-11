@@ -16,6 +16,7 @@ def generate_brand_dna(brand_id: UUID) -> BrandDNA:
         .table("brand_assets")
         .select("analysis_result")
         .eq("brand_id", str(brand_id))
+        .eq("asset_type", "brand_reference")
         .not_.is_("analysis_result", "null")
         .execute()
     )

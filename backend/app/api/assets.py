@@ -1,7 +1,7 @@
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from postgrest.exceptions import APIError
 
 from app.core.supabase import get_supabase_client
@@ -19,6 +19,11 @@ ALLOWED_CONTENT_TYPES = {
 
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
+ALLOWED_ASSET_TYPES = {
+    "brand_reference",
+    "moodboard",
+    "edit_source",
+}
 
 @router.post(
     "/projects/{project_id}/assets",
@@ -27,8 +32,17 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 )
 async def upload_project_asset(
     project_id: UUID,
+    asset_type: str = Form(...),
     file: UploadFile = File(...),
 ) -> BrandAssetResponse:
+
+
+    if asset_type not in ALLOWED_ASSET_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid asset type.",
+        )
+
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
@@ -87,7 +101,7 @@ async def upload_project_asset(
             "file_name": original_name,
             "storage_bucket": "brand-assets",
             "storage_path": storage_path,
-            "asset_type": "product_image",
+            "asset_type": asset_type,
         }
 
         asset_response = (
