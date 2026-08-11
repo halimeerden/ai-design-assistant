@@ -76,3 +76,39 @@ def create_design_brief(
             status_code=500,
             detail="An unexpected error occurred while creating the design brief.",
         )
+
+@router.get(
+    "/briefs/{brief_id}",
+    response_model=DesignBriefResponse,
+)
+def get_design_brief(brief_id: UUID) -> DesignBriefResponse:
+    try:
+        response = (
+            get_supabase_client()
+            .table("design_briefs")
+            .select("*")
+            .eq("id", str(brief_id))
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Design brief not found.",
+            )
+
+        return DesignBriefResponse.model_validate(response.data[0])
+
+    except APIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch design brief.",
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while fetching the design brief.",
+        )

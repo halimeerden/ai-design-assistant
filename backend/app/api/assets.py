@@ -219,3 +219,40 @@ def analyze_asset(asset_id: UUID) -> BrandAssetResponse:
             detail=str(exc),
             #detail="An unexpected error occurred while analyzing the asset.",
         )
+
+@router.get(
+    "/projects/{project_id}/assets",
+    response_model=list[BrandAssetResponse],
+)
+def list_project_assets(
+    project_id: UUID,
+    asset_type: str | None = None,
+) -> list[BrandAssetResponse]:
+    try:
+        query = (
+            get_supabase_client()
+            .table("brand_assets")
+            .select("*")
+            .eq("project_id", str(project_id))
+        )
+
+        if asset_type:
+            query = query.eq("asset_type", asset_type)
+
+        response = query.execute()
+
+        return [
+            BrandAssetResponse.model_validate(asset)
+            for asset in (response.data or [])
+        ]
+
+    except APIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to fetch project assets.",
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred while fetching project assets.",
+        )
