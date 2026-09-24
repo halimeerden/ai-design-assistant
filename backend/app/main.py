@@ -6,6 +6,7 @@ from app.api.health import router as health_router
 from app.api.projects import router as projects_router
 from app.api.assets import router as assets_router
 from app.api.briefs import router as briefs_router
+from app.api.generation import router as generation_router
 
 app = FastAPI(title="AI Design Assistant API")
 
@@ -22,4 +23,4 @@ app.include_router(brands_router)
 app.include_router(projects_router)
 app.include_router(assets_router)
 app.include_router(briefs_router)
-
+app.include_router(generation_router)
