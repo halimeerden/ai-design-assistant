@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     gemini_api_key: str
 
     ai_vision_provider: str = "gemini"
-    ai_image_model: str = "gemini-3.1-flash-image-preview"
+    ai_image_model: str = "gemini-3.1-flash-image"
 
 
 @lru_cache
