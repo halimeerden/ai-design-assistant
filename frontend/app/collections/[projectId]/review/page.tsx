@@ -52,6 +52,8 @@ export default function CollectionReviewPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -124,12 +126,58 @@ export default function CollectionReviewPage() {
     router.push(`/collections/${projectId}/brief`);
   }
 
-  function handleGenerate() {
-    // Generation endpoint will be connected in the next phase.
-    console.log("Generate collection", {
-      projectId,
-      briefId,
-    });
+  async function handleGenerate() {
+    if (isGenerating || !briefId) return;
+  
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  
+    if (!apiBaseUrl) {
+      setGenerationError("API base URL is not configured.");
+      return;
+    }
+  
+    try {
+      setIsGenerating(true);
+      setGenerationError(null);
+  
+      const response = await fetch(
+        `${apiBaseUrl}/projects/${projectId}/generate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            brief_id: briefId,
+          }),
+        },
+      );
+  
+      if (!response.ok) {
+        throw new Error("Failed to generate collection.");
+      }
+  
+      const result = (await response.json()) as {
+        id: string;
+        status: string;
+      };
+  
+      if (result.status !== "completed") {
+        throw new Error("Generation did not complete.");
+      }
+  
+      router.push(
+        `/collections/${projectId}/results?requestId=${result.id}`,
+      );
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   if (isLoading) {
@@ -305,10 +353,6 @@ export default function CollectionReviewPage() {
                 <span className="font-medium text-zinc-900">
                   IRYA
                 </span>
-
-                <span className="text-sm text-green-700">
-                  Brand DNA applied ✓
-                </span>
               </div>
             </div>
 
@@ -332,12 +376,18 @@ export default function CollectionReviewPage() {
               ← Edit Brief
             </button>
 
+            {generationError && (
+              <p role="alert" className="text-sm text-red-600">
+                {generationError}
+              </p>
+            )}
             <button
               type="button"
               onClick={handleGenerate}
-              className="rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700"
+              disabled={isGenerating}
+              className="rounded-xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ✦ Generate Collection
+              {isGenerating ? "Generating..." : "✦ Generate Collection"}
             </button>
           </div>
         </section>

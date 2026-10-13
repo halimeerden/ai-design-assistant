@@ -122,10 +122,10 @@ def create_generation_request(
         ).eq("id", request_id).execute()
 
         generate_collection_designs(
-      design_request_id=request_id,
-     brief=brief,
-     product_type="bath_mat",
-)
+        design_request_id=UUID(request_id),
+        brief=brief,
+        product_type="bath_mat",
+        )
 
         completed_response = (
             supabase.table("design_requests")
@@ -155,3 +155,103 @@ def create_generation_request(
             status_code=500,
             detail="Mock image generation failed. Check backend logs.",
         )
+
+class GeneratedDesignResponse(BaseModel):
+    id: UUID
+    image_url: str
+    model_name: str | None = None
+
+
+class GenerationResultsResponse(BaseModel):
+    request_id: UUID
+    status: str
+    designs: list[GeneratedDesignResponse]
+
+
+@router.get(
+    "/projects/{project_id}/generation-requests/{request_id}/results",
+    response_model=GenerationResultsResponse,
+)
+def get_generation_results(
+    project_id: UUID,
+    request_id: UUID,
+) -> GenerationResultsResponse:
+    supabase = get_supabase_client()
+
+    try:
+        request_response = (
+            supabase.table("design_requests")
+            .select("id, project_id, status")
+            .eq("id", str(request_id))
+            .eq("project_id", str(project_id))
+            .eq("request_type", "generate")
+            .limit(1)
+            .execute()
+        )
+
+        if not request_response.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Generation request not found for this project.",
+            )
+
+        generation_request = request_response.data[0]
+
+        designs_response = (
+            supabase.table("generated_designs")
+            .select("id, storage_bucket, storage_path, model_name")
+            .eq("design_request_id", str(request_id))
+            .order("created_at")
+            .execute()
+        )
+
+        designs = []
+
+        for design in designs_response.data or []:
+            signed_url_response = (
+                supabase.storage
+                .from_(design["storage_bucket"])
+                .create_signed_url(
+                    design["storage_path"],
+                    3600,
+                )
+            )
+
+            image_url = signed_url_response.get("signedURL")
+
+            if not image_url:
+                raise RuntimeError(
+                    "Failed to create signed image URL."
+                )
+
+            designs.append(
+                GeneratedDesignResponse(
+                    id=design["id"],
+                    image_url=image_url,
+                    model_name=design.get("model_name"),
+                )
+            )
+
+        return GenerationResultsResponse(
+            request_id=generation_request["id"],
+            status=generation_request["status"],
+            designs=designs,
+        )
+
+    except HTTPException:
+        raise
+    except APIError:
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to load generation results.",
+        )
+            except HTTPException:
+        raise
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load generation results.",
+        ) from exc
