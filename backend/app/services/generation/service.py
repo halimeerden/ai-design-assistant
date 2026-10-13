@@ -36,3 +36,33 @@ def generate_design(
     )
 
     return generated_design
+
+
+def generate_collection_designs(
+    design_request_id: UUID,
+    brief: dict,
+    product_type: str = "bath_mat",
+) -> list[dict]:
+    number_of_concepts = brief.get("number_of_concepts", 1)
+
+    if (
+        not isinstance(number_of_concepts, int)
+        or isinstance(number_of_concepts, bool)
+        or not 1 <= number_of_concepts <= 4
+    ):
+        raise ValueError(
+            "number_of_concepts must be between 1 and 4."
+        )
+
+    generated_designs = []
+
+    for _ in range(number_of_concepts):
+        design = generate_design(
+            design_request_id=design_request_id,
+            brief=brief,
+            product_type=product_type,
+        )
+
+        generated_designs.append(design)
+
+    return generated_designs

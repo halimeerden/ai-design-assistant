@@ -1,4 +1,3 @@
-
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -6,6 +5,7 @@ from postgrest.exceptions import APIError
 from pydantic import BaseModel
 
 from app.core.supabase import get_supabase_client
+from app.services.generation.service import generate_collection_designs
 
 
 router = APIRouter(tags=["generation"])
@@ -35,7 +35,6 @@ def create_generation_request(
     supabase = get_supabase_client()
 
     try:
-        # 1. Verify that the project exists.
         project_response = (
             supabase.table("design_projects")
             .select("id")
@@ -50,7 +49,6 @@ def create_generation_request(
                 detail="Project not found.",
             )
 
-        # 2. Fetch the selected brief and verify its project.
         brief_response = (
             supabase.table("design_briefs")
             .select("*")
@@ -68,7 +66,6 @@ def create_generation_request(
 
         brief = brief_response.data[0]
 
-        # 3. Fetch moodboard image paths.
         moodboard_response = (
             supabase.table("brand_assets")
             .select("storage_path")
@@ -82,7 +79,6 @@ def create_generation_request(
             for asset in (moodboard_response.data or [])
         ]
 
-        # 4. Create the generation request.
         request_payload = {
             "project_id": str(project_id),
             "request_type": "generate",
@@ -104,19 +100,58 @@ def create_generation_request(
                 detail="Generation request was not created.",
             )
 
-        return GenerationRequestResponse.model_validate(
-            request_response.data[0]
-        )
+        request = request_response.data[0]
+        request_id = request["id"]
 
+    except HTTPException:
+        raise
     except APIError:
         raise HTTPException(
             status_code=502,
             detail="Failed to create generation request.",
         )
-    except HTTPException:
-        raise
     except Exception:
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while creating the generation request.",
+        )
+
+    try:
+        supabase.table("design_requests").update(
+            {"status": "processing"}
+        ).eq("id", request_id).execute()
+
+        generate_collection_designs(
+      design_request_id=request_id,
+     brief=brief,
+     product_type="bath_mat",
+)
+
+        completed_response = (
+            supabase.table("design_requests")
+            .update({"status": "completed"})
+            .eq("id", request_id)
+            .execute()
+        )
+
+        if not completed_response.data:
+            raise RuntimeError(
+                "Generation request status was not updated."
+            )
+
+        return GenerationRequestResponse.model_validate(
+            completed_response.data[0]
+        )
+
+    except Exception:
+        try:
+            supabase.table("design_requests").update(
+                {"status": "failed"}
+            ).eq("id", request_id).execute()
+        except Exception:
+            pass
+
+        raise HTTPException(
+            status_code=500,
+            detail="Mock image generation failed. Check backend logs.",
         )
